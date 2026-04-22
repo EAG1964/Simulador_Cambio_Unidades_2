@@ -16,6 +16,7 @@
         .btn-tiempo { background: #0891b2; color: white; }
         .btn-densidad { background: #059669; color: white; }
         .btn-rapidez { background: #d97706; color: white; }
+        .btn-energia { background: #8b5cf6; color: white; }
         .expo-bar { display: none; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px; background: #eff6ff; padding: 5px; border-radius: 8px; border: 1px dashed var(--blue); }
         .btn-expo { background: #334155; color: white; width: 35px; height: 35px; font-size: 1.1rem; }
         .step { margin-top: 0.5rem; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 0.8rem; border-left: 5px solid var(--blue); }
@@ -29,6 +30,7 @@
         .error { background: #fee2e2; color: var(--red); }
         .success { background: #dcfce7; color: var(--green); }
         .pauta { background: #fffec7; color: #92400e; padding: 5px; border-radius: 6px; text-align: center; margin-bottom: 5px; font-size: 0.85rem; font-weight: bold; border: 1px solid #ffd700; }
+        .desafio-msg { background: #e0f2fe; color: #075985; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 10px; border: 1px solid #7dd3fc; display: none; font-weight: bold; font-size: 0.9rem; line-height: 1.4; }
         
         .licencia-bloque { margin-top: 15px; background: #f1f5f9; color: #475569; font-size: 11px; text-align: center; border-radius: 8px; padding: 10px; border: 1px solid #e2e8f0; }
         .licencia-bloque a { color: #2563eb; text-decoration: none; font-weight: bold; }
@@ -44,11 +46,17 @@
             <button class="btn-tiempo" onclick="iniciar('tiempo')">Tiempo (d, h, min, s)</button>
             <button class="btn-densidad" onclick="iniciar('densidad')">Densidad (kg/m³, g/cm³, g/mL)</button>
             <button class="btn-rapidez" onclick="iniciar('rapidez')">Rapidez (m/s ↔ km/h)</button>
+            <button class="btn-energia" onclick="iniciar('energia')">Energía (J, kJ, cal, kcal)</button>
         </div>
     </div>
 
     <div id="juego" style="display:none;">
         <h2 id="reto-txt"></h2>
+        <div class="desafio-msg" id="msg-desafio">
+            💡 <strong>¿Conoces un atajo?</strong><br>
+            Puedes resolver este reto por el "camino largo" (usando las 3 filas) o, si conoces la relación directa entre kcal y kJ, ¡puedes usar solo la primera fila!
+        </div>
+        
         <div class="expo-bar" id="expo-teclado">
             <button class="btn-expo" onclick="insertarExpo('³')">³</button>
         </div>
@@ -99,6 +107,7 @@
         document.getElementById('selector-inicial').style.display='none';
         document.getElementById('juego').style.display='block';
         document.getElementById('expo-teclado').style.display = (tipo === 'densidad') ? 'flex' : 'none';
+        document.getElementById('msg-desafio').style.display = 'none';
 
         data.cant = Math.floor(Math.random()*90)+10;
         let pasos = [];
@@ -114,7 +123,6 @@
             const u = ['kg/m³', 'g/cm³', 'g/mL'];
             data.ori = u[Math.floor(Math.random()*3)];
             do { data.des = u[Math.floor(Math.random()*3)]; } while(data.ori === data.des);
-            
             if ((data.ori === 'kg/m³' && data.des === 'g/cm³') || (data.ori === 'g/cm³' && data.des === 'kg/m³')) {
                 pasos.push({v1:1, u1:'kg', v2:1000, u2:'g'});
                 pasos.push({v1:1, u1:'m³', v2:1000000, u2:'cm³'});
@@ -130,6 +138,20 @@
             data.des = toMS ? 'm/s' : 'km/h';
             pasos.push({v1:1, u1:'km', v2:1000, u2:'m'});
             pasos.push({v1:1, u1:'h', v2:3600, u2:'s'});
+        }
+        else if(tipo === 'energia') {
+            const units = ['kJ', 'J', 'cal', 'kcal'];
+            const links = [{v1:1,u1:'kJ',v2:1000,u2:'J'}, {v1:1,u1:'cal',v2:4.18,u2:'J'}, {v1:1,u1:'kcal',v2:1000,u2:'cal'}];
+            let i1 = Math.floor(Math.random()*4), i2;
+            do { i2 = Math.floor(Math.random()*4); } while(i1 === i2);
+            data.ori = units[i1]; data.des = units[i2];
+            
+            if((data.ori === 'kcal' && data.des === 'kJ') || (data.ori === 'kJ' && data.des === 'kcal')) {
+                document.getElementById('msg-desafio').style.display = 'block';
+            }
+
+            if (i1 < i2) { for(let i=i1; i<i2; i++) pasos.push(links[i]); } 
+            else { for(let i=i1-1; i>=i2; i--) pasos.push(links[i]); }
         }
 
         document.getElementById('reto-txt').innerText = `RETO: ${data.cant} ${data.ori} a ${data.des}`;
@@ -166,36 +188,48 @@
     }
 
     function checkPaso2() {
-        let aciertos = 0;
-        let usadas = new Set();
-        
-        for (let i = 0; i < data.p2_sol.length; i++) {
-            let v1 = document.getElementById(`p2v1_${i}`).value;
-            let u1 = document.getElementById(`p2u1_${i}`).value;
-            let v2 = document.getElementById(`p2v2_${i}`).value;
-            let u2 = document.getElementById(`p2u2_${i}`).value;
-
-            let idx = data.p2_sol.findIndex((s, j) => {
-                if (usadas.has(j)) return false;
-                let normal = (v1 == s.v1 && u1 == s.u1 && v2 == s.v2 && u2 == s.u2);
-                let inverso = (v1 == s.v2 && u1 == s.u2 && v2 == s.v1 && u2 == s.u1);
-                return normal || inverso;
-            });
-
-            if (idx !== -1) { aciertos++; usadas.add(idx); }
+        let inputs = [];
+        for(let i=0; i<data.p2_sol.length; i++) {
+            let v1 = document.getElementById(`p2v1_${i}`).value.replace(',', '.').trim();
+            let u1 = document.getElementById(`p2u1_${i}`).value.trim();
+            let v2 = document.getElementById(`p2v2_${i}`).value.replace(',', '.').trim();
+            let u2 = document.getElementById(`p2u2_${i}`).value.trim();
+            if(v1 || u1 || v2 || u2) inputs.push({v1, u1, v2, u2});
         }
 
-        const f = document.getElementById('f2');
-        f.style.display = 'block';
+        let esDirectaValida = false;
+        if(inputs.length === 1 && ((data.ori==='kcal' && data.des==='kJ') || (data.ori==='kJ' && data.des==='kcal'))) {
+            let i = inputs[0];
+            // Validamos la relación 1 kcal = 4.18 kJ de forma bidireccional
+            if((i.v1=='1' && i.u1=='kcal' && i.v2=='4.18' && i.u2=='kJ') || 
+               (i.v1=='4.18' && i.u1=='kJ' && i.v2=='1' && i.u2=='kcal')) {
+                esDirectaValida = true;
+                data.p2_sol = [{v1:1, u1:'kcal', v2:4.18, u2:'kJ'}];
+                actualizarP3Sol();
+            }
+        }
 
-        if (aciertos === data.p2_sol.length) {
-            f.innerText = "✓ ¡Correcto!";
-            f.className = "feedback success";
-            activarPaso3();
-        } else {
-            data.int2--;
+        let aciertos = 0;
+        let usadas = new Set();
+        inputs.forEach(inp => {
+            let idx = data.p2_sol.findIndex((s, j) => {
+                if (usadas.has(j)) return false;
+                let normal = (inp.v1 == s.v1 && inp.u1 == s.u1 && inp.v2 == s.v2 && inp.u2 == s.u2);
+                let inverso = (inp.v1 == s.v2 && inp.u1 == s.u2 && inp.v2 == s.v1 && inp.u2 == s.u1);
+                return normal || inverso;
+            });
+            if (idx !== -1) { aciertos++; usadas.add(idx); }
+        });
+
+        const f = document.getElementById('f2'); f.style.display = 'block';
+        
+        if (esDirectaValida || aciertos === data.p2_sol.length) { 
+            f.innerText = "✓ ¡Correcto!"; f.className = "feedback success"; activarPaso3(); 
+            document.getElementById('msg-desafio').style.display = 'none';
+        } else { 
+            data.int2--; 
             if (data.int2 <= 0) { aplicarSolP2(); activarPaso3(); } 
-            else { f.innerText = `× Error. Quedan ${data.int2} intentos.`; f.className = "feedback error"; }
+            else { f.innerText = `× Error. Quedan ${data.int2} intentos.`; f.className = "feedback error"; } 
         }
     }
 
@@ -215,17 +249,19 @@
     }
 
     function checkPaso3() {
-        let res = parseFloat(document.getElementById('p3res').value);
+        let res = parseFloat(document.getElementById('p3res').value.replace(',', '.'));
         let diff = Math.abs(res - data.final_val);
         const f = document.getElementById('f3'); f.style.display='block';
-        if(diff < 0.000001 || (data.final_val !== 0 && diff/Math.abs(data.final_val) < 0.001)) { f.innerText="✓ ¡Excelente!"; f.className="feedback success"; }
+        if(diff < 0.000001 || (data.final_val !== 0 && diff/Math.abs(data.final_val) < 0.005)) { f.innerText="✓ ¡Excelente!"; f.className="feedback success"; }
         else { data.int3--; if(data.int3 <= 0) aplicarSolP3(); else { f.innerText=`× Error. Quedan ${data.int3} intentos.`; f.className="feedback error"; } }
     }
 
     function aplicarSolP2() {
         data.p2_sol.forEach((s, i) => {
-            document.getElementById(`p2v1_${i}`).value = s.v1; document.getElementById(`p2u1_${i}`).value = s.u1;
-            document.getElementById(`p2v2_${i}`).value = s.v2; document.getElementById(`p2u2_${i}`).value = s.u2;
+            if(document.getElementById(`p2v1_${i}`)) {
+                document.getElementById(`p2v1_${i}`).value = s.v1; document.getElementById(`p2u1_${i}`).value = s.u1;
+                document.getElementById(`p2v2_${i}`).value = s.v2; document.getElementById(`p2u2_${i}`).value = s.u2;
+            }
         });
     }
 
